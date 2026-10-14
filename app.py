@@ -2,12 +2,14 @@
 import streamlit as st
 from google import genai
 
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="ECHO // AI",
     page_icon="🔎",
     layout="wide"
 )
 
+# ---------------- DESIGN ----------------
 st.markdown("""
 <style>
 .stApp {
@@ -15,7 +17,7 @@ st.markdown("""
     color: #e6edf7;
 }
 h1, h2, h3 {
-    color: #69e8ff;
+    color: #69e8ff !important;
 }
 .stButton > button {
     background-color: #15283c;
@@ -26,16 +28,18 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
+# ---------------- HEADER ----------------
 st.title("🔎 ECHO // AI")
-st.subheader("An Interactive AI Mystery")
+st.subheader("An Interactive Mystery Investigation")
 st.caption("CASE 001: THE MISSING HOUR")
 
 st.write(
-    "A scientist disappeared from a locked laboratory. "
+    "A scientist has disappeared from a locked laboratory. "
     "One hour of security footage is missing. "
-    "Question the suspects, examine the clues, and solve the mystery."
+    "Question the suspects, examine the clues, and solve the case."
 )
 
+# ---------------- CASE DATA ----------------
 SUSPECTS = {
     "Dr. Sara": "The laboratory scientist",
     "Alex": "The security guard",
@@ -49,6 +53,7 @@ CLUES = [
     "The security log shows Alex entered the control room at 9:10 PM."
 ]
 
+# ---------------- SESSION STATE ----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -56,15 +61,17 @@ if "clues_found" not in st.session_state:
     st.session_state.clues_found = []
 
 if "verdict" not in st.session_state:
-    st.session_state.verdict = False
+    st.session_state.verdict = None
 
+# ---------------- LAYOUT ----------------
 left, right = st.columns([1, 2])
 
+# ---------------- SUSPECTS AND CLUES ----------------
 with left:
     st.header("👥 Suspects")
 
     suspect = st.selectbox(
-        "Choose someone to question",
+        "Choose a suspect",
         list(SUSPECTS.keys())
     )
 
@@ -72,26 +79,31 @@ with left:
 
     st.divider()
     st.header("🧩 Evidence Board")
+    st.caption("Select the clues you want to investigate.")
 
     for i, clue in enumerate(CLUES):
-        if st.checkbox(f"Clue {i + 1}", key=f"clue_{i}"):
-            if clue not in st.session_state.clues_found:
-                st.session_state.clues_found.append(clue)
+        found = st.checkbox(clue, key=f"clue_{i}")
+
+        if found and clue not in st.session_state.clues_found:
+            st.session_state.clues_found.append(clue)
+
+        if not found and clue in st.session_state.clues_found:
+            st.session_state.clues_found.remove(clue)
 
     st.write(
-        f"Clues discovered: {len(st.session_state.clues_found)}/{len(CLUES)}"
+        f"Clues selected: "
+        f"{len(st.session_state.clues_found)}/{len(CLUES)}"
     )
 
+# ---------------- AI INTERROGATION ----------------
 with right:
-    st.header("💬 Interrogate Suspect")
+    st.header("💬 Interrogate a Suspect")
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-    question = st.chat_input(
-        "Ask the suspect a question..."
-    )
+    question = st.chat_input("Ask the suspect a question...")
 
     if question:
         st.session_state.messages.append({
@@ -102,12 +114,22 @@ with right:
         with st.chat_message("user"):
             st.write(question)
 
-        try:
-            api_key = st.secrets["GEMINI_API_KEY"]
-            client = genai.Client(api_key=api_key)
+        answer = ""
 
+        # Check whether the API key exists
+        api_key = st.secrets.get("GEMINI_API_KEY", "")
+
+        if not api_key:
+            answer = (
+                "Gemini API key is missing. "
+                "Open Streamlit Settings > Secrets and add "
+                "GEMINI_API_KEY."
+            )
+            st.error(answer)
+
+        else:
             prompt = f"""
-You are playing a fictional detective mystery game.
+You are a character in a fictional detective mystery game.
 
 CASE:
 A scientist disappeared from a locked laboratory.
@@ -116,37 +138,49 @@ The laboratory door opened at 9:15 PM.
 Alex entered the control room at 9:10 PM.
 A research access card was found near the control room.
 
-SUSPECT: {suspect}
-SUSPECT ROLE: {SUSPECTS[suspect]}
+SELECTED SUSPECT:
+{suspect}
 
-The player asks: {question}
+SUSPECT ROLE:
+{SUSPECTS[suspect]}
 
-Available clues:
+PLAYER'S QUESTION:
+{question}
+
+CLUES THE PLAYER HAS SELECTED:
 {st.session_state.clues_found}
 
-Instructions:
-- Respond in character as the selected suspect.
-- Keep the answer short and realistic.
-- You may be nervous, defensive, or cooperative.
-- Do not reveal the entire solution immediately.
-- Treat this as a fictional mystery.
+RULES:
+- Reply in character as the selected suspect.
+- Keep your answer short and realistic.
+- Be cooperative, nervous, or defensive when appropriate.
+- Do not reveal the entire mystery immediately.
+- Do not claim evidence that is not in the case.
+- This is a fictional game.
 """
 
-            
             try:
-                with st.spinner("The suspect is responding..."):
+                client = genai.Client(api_key=api_key)
+
+                with st.spinner("The suspect is thinking..."):
                     response = client.models.generate_content(
                         model="gemini-2.5-flash",
                         contents=prompt
                     )
 
-                answer = response.text or "The suspect remains silent."
+                answer = (
+                    response.text
+                    or "The suspect has no response right now."
+                )
 
             except Exception as e:
-                st.error(f"{type(e).__name__}: {e}")
-                answer = "AI response failed. Check the error above."
-
-
+                st.error(
+                    f"Gemini API error: {type(e).__name__}: {e}"
+                )
+                answer = (
+                    "The AI could not respond. "
+                    "Read the error above to find the cause."
+                )
 
         with st.chat_message("assistant"):
             st.write(answer)
@@ -157,32 +191,35 @@ Instructions:
         })
 
     st.divider()
+
+    # ---------------- FINAL VERDICT ----------------
     st.header("⚖️ Your Final Verdict")
 
-    verdict = st.radio(
-        "Who do you think is responsible?",
-        ["Dr. Sara", "Alex", "Maya"],
+    selected_verdict = st.radio(
+        "Who do you suspect?",
+        list(SUSPECTS.keys()),
         horizontal=True
     )
 
     if st.button("Submit Final Verdict"):
-        st.session_state.verdict = True
-        st.session_state.selected_verdict = verdict
+        st.session_state.verdict = selected_verdict
 
-    if st.session_state.verdict:
-        if st.session_state.selected_verdict == "Alex":
+    if st.session_state.verdict is not None:
+        if st.session_state.verdict == "Alex":
             st.success(
-                "Correct! Alex is the leading suspect based on the "
-                "security log and missing footage. Detective work complete!"
+                "You identified the leading suspect! "
+                "The security log places Alex in the control room "
+                "during the missing-footage period."
             )
         else:
             st.warning(
-                "Not quite! Review the security log and the missing "
-                "footage before making your decision."
+                "That verdict is not the expected answer. "
+                "Review the clues and investigate further."
             )
 
     if st.button("🔄 Start New Investigation"):
         st.session_state.messages = []
         st.session_state.clues_found = []
-        st.session_state.verdict = False
+        st.session_state.verdict = None
         st.rerun()
+

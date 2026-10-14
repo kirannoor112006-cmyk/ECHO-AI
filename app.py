@@ -132,18 +132,20 @@ Instructions:
 - Treat this as a fictional mystery.
 """
 
-            with st.spinner("The suspect is responding..."):
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
-                )
+            
+            try:
+                with st.spinner("The suspect is responding..."):
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt
+                    )
 
-            answer = response.text or "The suspect remains silent."
+                answer = response.text or "The suspect remains silent."
 
-        
             except Exception as e:
                 st.error(f"{type(e).__name__}: {e}")
                 answer = "AI response failed. Check the error above."
+
 
 
         with st.chat_message("assistant"):

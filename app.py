@@ -140,11 +140,11 @@ Instructions:
 
             answer = response.text or "The suspect remains silent."
 
-        except Exception:
-            answer = (
-                "AI connection failed. Check your Gemini API key "
-                "in Streamlit Secrets and try again."
-            )
+        
+except Exception as e:
+    st.error(f"{type(e).__name__}: {e}")
+    answer = "AI response failed. Check the error above."
+
 
         with st.chat_message("assistant"):
             st.write(answer)
